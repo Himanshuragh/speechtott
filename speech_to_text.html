@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Formality Detector</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        
+        body {
+            font-family: 'Inter', sans-serif;
+           
+            background-image: linear-gradient(to bottom right, #7f8388, #a9b4c9);
+            min-height: 100vh;
+        }
+        .recording {
+            animation: pulse-red 1s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { background-color: #dc2626; box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            50% { background-color: #b91c1c; box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+        }
+        
+        .btn-red-gradient {
+            background-image: linear-gradient(to right, #ef4444, #ec4899); 
+        }
+        .btn-red-gradient:hover {
+            background-image: linear-gradient(to right, #dc2626, #db2777);
+        }
+        .btn-blue-gradient {
+            background-image: linear-gradient(to right, #6366f1, #3b82f6);
+        }
+        .btn-blue-gradient:hover {
+            background-image: linear-gradient(to right, #4f46e5, #2563eb);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex items-center justify-center">
+
+    <div class="bg-white shadow-2xl rounded-xl p-6 md:p-10 w-full max-w-4xl border border-gray-100 transform hover:shadow-xl transition duration-300">
+        <h1 class="text-4xl font-extrabold text-gray-800 mb-2">SPEECH TO TEXT CONVERTER</h1>
+        <p class="text-gray-500 mb-8">Click the record button to speak. Your voice will be transcribed and analyzed for formality.</p>
+
+    
+        <div class="mb-8">
+            <label for="transcriptInput" class="block text-lg font-medium text-gray-700 mb-2">
+                Live Transcription or Manual Input
+            </label>
+            <textarea id="transcriptInput" 
+                      rows="4" 
+                      placeholder="Start recording, or paste text here for analysis..."
+                      class="w-full p-4 border-2 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition-shadow text-gray-800 resize-none">Click "Start Recording" to speak.</textarea>
+        </div>
+
+       
+        <div class="flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-4 mb-8">
+            
+           
+            <button onclick="toggleRecording()" 
+                    id="recordButton"
+                    class="w-full md:w-auto px-8 py-3 btn-red-gradient text-white font-semibold text-lg rounded-full shadow-lg transition duration-150 ease-in-out transform hover:scale-[1.05] focus:outline-none focus:ring-4 focus:ring-red-300 flex items-center justify-center space-x-2">
+                <svg id="micIcon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7v0m0 0v0a7 7 0 01-7-7v0m0 0h14m-7 4v3m-3 0h6"></path>
+                </svg>
+                <span id="buttonText">Start Recording</span>
+            </button>
+
+           
+            <div id="statusIndicator" class="text-lg font-medium text-gray-600 hidden p-2">
+                <span id="listeningText" class="text-red-600">Listening... Speak now!</span>
+            </div>
+
+            
+            <button onclick="analyzeText(document.getElementById('transcriptInput').value)" 
+                    id="analyzeButton"
+                    class="w-full md:w-auto px-6 py-2 btn-blue-gradient text-white text-base font-semibold rounded-lg shadow-md transition duration-150 ease-in-out focus:outline-none focus:ring-4 focus:ring-blue-300">
+                Analyze Manually Entered Text
+            </button>
+        </div>
+
+
+        
+        <div id="resultsArea" class="mt-10 hidden">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">Analysis Results</h2>
+            
+            <div id="resultCard" class="p-6 rounded-lg shadow-lg">
+        
+                <div class="flex items-center space-x-3 mb-4">
+                    <span class="text-xl font-bold text-gray-600">Classification:</span>
+                    <span id="classificationOutput" class="text-2xl font-extrabold px-3 py-1 rounded-full"></span>
+                </div>
+                
+               
+                <div class="mb-4">
+                    <span class="text-lg font-semibold text-gray-700 block mb-1">Transcription Used:</span>
+                    <p id="transcriptionOutput" class="p-3 bg-gray-50 rounded-md italic text-gray-600 border border-gray-200"></p>
+                </div>
+                
+                
+                <div>
+                    <span class="text-lg font-semibold text-gray-700 block mb-1">Reasoning:</span>
+                    <p id="reasoningOutput" class="p-3 bg-gray-50 rounded-md text-gray-800 border border-gray-200"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+        let isRecording = false;
+
+        if (recognition) {
+            recognition.continuous = false; 
+            recognition.interimResults = true; g
+            recognition.lang = 'en-US'; 
+        }
+
+        const transcriptInput = document.getElementById('transcriptInput');
+        const recordButton = document.getElementById('recordButton');
+        const buttonText = document.getElementById('buttonText');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const resultsArea = document.getElementById('resultsArea');
+        
+       
+        function resetUI() {
+            isRecording = false;
+            recordButton.classList.remove('recording');
+            buttonText.textContent = 'Start Recording';
+            statusIndicator.classList.add('hidden');
+            resultsArea.classList.add('hidden');
+        }
+
+        
+        
+        if (recognition) {
+            recognition.onstart = () => {
+                isRecording = true;
+                recordButton.classList.add('recording');
+                buttonText.textContent = 'Stop Recording';
+                statusIndicator.classList.remove('hidden');
+                transcriptInput.value = '... Listening, please speak clearly ...';
+                resultsArea.classList.add('hidden');
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                if (finalTranscript) {
+                    transcriptInput.value = finalTranscript.trim();
+                } else {
+                    
+                    transcriptInput.value = '... ' + interimTranscript;
+                }
+            };
+
+            recognition.onend = () => {
+                resetUI();
+                
+                
+                const finalTranscript = transcriptInput.value.trim();
+                if (finalTranscript && !finalTranscript.startsWith('...')) {
+                     
+                    analyzeText(finalTranscript);
+                } else {
+                    
+                    if (finalTranscript.startsWith('...')) {
+                        transcriptInput.value = '';
+                    }
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                
+                recognition.abort(); 
+                
+                console.error('Speech recognition error:', event.error);
+                
+                let errorMessage = 'Error: ' + event.error;
+                
+                if (event.error === 'network') {
+                    
+                    errorMessage = '⚠️ Network Error: Cannot reach the speech server. Please check your internet connection or try reloading the page.';
+                } else if (event.error === 'not-allowed') {
+                    
+                    errorMessage = '🎤 Permission Denied: Please allow microphone access in your browser settings.';
+                } else if (event.error === 'no-speech') {
+                    errorMessage = '🔇 No Speech Detected: Please speak louder or adjust your microphone.';
+                } else if (event.error === 'audio-capture') {
+                    
+                    errorMessage = '🎙️ Microphone Error: Ensure your microphone is connected and not being used by another application.';
+                }
+                
+                
+                resetUI();
+
+                transcriptInput.value = errorMessage;
+            };
+        }
+        
+       
+        function toggleRecording() {
+            if (!recognition) {
+                
+                transcriptInput.value = 'Error: Speech Recognition is not supported by your browser.';
+                return;
+            }
+
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+        
+       
+        
+        const informalMarkers = [
+            "don't", "can't", "won't", "it's", "i'm", "you're", "we're", "they're", "he's", 
+            "she's", "isn't", "wasn't", "aren't", "weren't", "hadn't", "shouldn't", "wouldn't",
+            "gonna", "wanna", "ya", "y'all", "lemme", "outta",
+            "hey", "oh", "like", "well", "uh", "um", "yeah", "nope", "cool", "dude", "kinda", 
+            "sorta", "guess", "just", "really", "lol", "cuz", "coz"
+        ];
+        
+       
+        function detectFormality(text) {
+            const lowerText = text.toLowerCase();
+            
+            const rawTokens = lowerText.split(/\s+/).filter(token => token.length > 0);
+            
+            let markerCount = 0;
+            let totalRelevantWords = 0;
+            
+            const punctuationRegex = /[.,!?;:'"()]/g;
+
+            const cleanTokens = rawTokens.map(token => token.replace(punctuationRegex, ''));
+
+            cleanTokens.forEach(token => {
+                if (token.match(/^[a-z]+$/)) {
+                    totalRelevantWords++;
+                    if (informalMarkers.includes(token)) {
+                        markerCount++;
+                    }
+                }
+            });
+            
+            let classification;
+            let reasoning;
+            
+            if (totalRelevantWords < 5) {
+                classification = markerCount > 0 ? "Informal" : "Formal";
+                reasoning = `Text is very short (${totalRelevantWords} words), classified based on marker presence.`;
+            } else {
+                const formalityRatio = (markerCount / totalRelevantWords) * 100;
+                
+                if (formalityRatio >= 10) {
+                    classification = "Informal";
+                    reasoning = (
+                        `High concentration of informal markers (${markerCount} markers in ${totalRelevantWords} words, ` +
+                        `${formalityRatio.toFixed(1)}% ratio). Markers include contractions and interjections/slang.`
+                    );
+                } else {
+                    classification = "Formal";
+                    reasoning = (
+                        `Low concentration of informal markers (${markerCount} markers in ${totalRelevantWords} words, ` +
+                        `${formalityRatio.toFixed(1)}% ratio). The language uses more complex and non-contracted phrasing.`
+                    );
+                }
+            }
+            
+            return {
+                classification, 
+                reasoning,
+                markerCount,
+                totalWords: totalRelevantWords
+            };
+        }
+
+       
+        function analyzeText(text) {
+            const transcript = (text || transcriptInput.value).trim();
+
+            const classificationOutput = document.getElementById('classificationOutput');
+            const transcriptionOutput = document.getElementById('transcriptionOutput');
+            const reasoningOutput = document.getElementById('reasoningOutput');
+            const resultCard = document.getElementById('resultCard');
+
+            resultCard.className = 'p-6 rounded-lg shadow-lg';
+            if (!transcript || transcript.startsWith('...')) {
+                resultsArea.classList.add('hidden');
+                transcriptInput.classList.add('border-red-500');
+                return;
+            }
+
+            transcriptInput.classList.remove('border-red-500');
+            
+            const results = detectFormality(transcript);
+
+            transcriptionOutput.textContent = transcript;
+            classificationOutput.textContent = results.classification;
+            reasoningOutput.textContent = results.reasoning;
+
+           
+            if (results.classification === 'Formal') {
+                classificationOutput.classList.remove('bg-red-200', 'text-red-800');
+                classificationOutput.classList.add('bg-green-200', 'text-green-800');
+                resultCard.classList.add('shadow-green-300/50');
+            } else {
+                classificationOutput.classList.remove('bg-green-200', 'text-green-800');
+                classificationOutput.classList.add('bg-red-200', 'text-red-800');
+                resultCard.classList.add('shadow-red-300/50');
+            }
+
+            resultsArea.classList.remove('hidden');
+        }
+        
+        
+        window.onload = () => {
+            transcriptInput.value = '';
+            
+            if (!recognition) {
+                recordButton.textContent = 'Voice Not Supported';
+                recordButton.disabled = true;
+                recordButton.classList.replace('bg-red-600', 'bg-gray-400');
+                recordButton.classList.remove('btn-red-gradient'); 
+            }
+        };
+    </script>
+
+</body>
+</html>
